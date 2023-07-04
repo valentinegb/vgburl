@@ -11,6 +11,8 @@ publish = false
 
 [dependencies]
 actix-web = "4.3.1"
+nanoid = "0.4.0"
 shuttle-actix-web = "0.20.0"
+shuttle-persist = "0.20.0"
 shuttle-runtime = "0.20.0"
 tokio = "1.26.0"
