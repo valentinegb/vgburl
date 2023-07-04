@@ -6,6 +6,7 @@ edition = "2021"
 description = "A simple personal URL shortener backend."
 homepage = "https://vgburl.shuttleapp.rs"
 repository = "https://github.com/valentinegb/vgburl"
+license = "MIT"
 publish = false
 
 [dependencies]
