@@ -1,7 +1,12 @@
 [package]
 name = "vgburl"
 version = "0.1.0"
+authors = ["Valentine Briese <valentinegb@icloud.com>"]
 edition = "2021"
+description = "A simple personal URL shortener backend."
+homepage = "https://vgburl.shuttleapp.rs"
+repository = "https://github.com/valentinegb/vgburl"
+publish = false
 
 [dependencies]
 actix-web = "4.3.1"
