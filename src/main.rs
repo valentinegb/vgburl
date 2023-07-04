@@ -26,6 +26,13 @@ async fn post_url(req_body: String, state: web::Data<AppState>) -> impl Responde
     }
 }
 
+#[get("/")]
+async fn get_repository() -> impl Responder {
+    HttpResponse::MovedPermanently()
+        .append_header((header::LOCATION, env!("CARGO_PKG_REPOSITORY")))
+        .finish()
+}
+
 #[get("/{id}")]
 async fn get_url(id: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
     let url = state.persist.load::<String>(id.as_str());
@@ -48,6 +55,7 @@ async fn actix_web(
 ) -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send + Clone + 'static> {
     let config = move |cfg: &mut ServiceConfig| {
         cfg.service(post_url)
+            .service(get_repository)
             .service(get_url)
             .app_data(web::Data::new(AppState { persist }));
     };
