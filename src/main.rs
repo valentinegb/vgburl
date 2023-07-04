@@ -1,7 +1,7 @@
 use actix_web::{
     get,
     http::{header, Uri},
-    put,
+    post,
     web::{self, ServiceConfig},
     HttpResponse, Responder,
 };
@@ -9,8 +9,8 @@ use nanoid::nanoid;
 use shuttle_actix_web::ShuttleActixWeb;
 use shuttle_persist::PersistInstance;
 
-#[put("/")]
-async fn put_url(req_body: String, state: web::Data<AppState>) -> impl Responder {
+#[post("/")]
+async fn post_url(req_body: String, state: web::Data<AppState>) -> impl Responder {
     let url = Uri::try_from(req_body);
 
     match url {
@@ -47,7 +47,7 @@ async fn actix_web(
     #[shuttle_persist::Persist] persist: PersistInstance,
 ) -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send + Clone + 'static> {
     let config = move |cfg: &mut ServiceConfig| {
-        cfg.service(put_url)
+        cfg.service(post_url)
             .service(get_url)
             .app_data(web::Data::new(AppState { persist }));
     };
