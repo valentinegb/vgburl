@@ -1,47 +1,65 @@
-use actix_web::{
-    get,
-    http::{header, Uri},
-    post,
-    web::{self, ServiceConfig},
-    HttpResponse, Responder,
-};
-use nanoid::nanoid;
-use shuttle_actix_web::ShuttleActixWeb;
-use shuttle_persist::PersistInstance;
+#[macro_use]
+extern crate rocket;
 
-#[post("/")]
-async fn post_url(req_body: String, state: web::Data<AppState>) -> impl Responder {
-    let url = Uri::try_from(req_body);
+use nanoid::nanoid;
+use rocket::{
+    http::{
+        uri::{Absolute, Reference},
+        Status,
+    },
+    request::FromParam,
+    response::{status, Redirect},
+    State,
+};
+use shuttle_persist::PersistInstance;
+use shuttle_rocket::ShuttleRocket;
+
+#[post("/", data = "<req_body>")]
+fn post_url(req_body: String, state: &State<AppState>) -> (Status, String) {
+    let url = Absolute::parse_owned(req_body);
 
     match url {
         Ok(url) => {
             let id = nanoid!(9);
 
             match state.persist.save::<String>(&id, url.to_string()) {
-                Ok(_) => HttpResponse::Ok().body(id),
-                Err(_) => HttpResponse::BadGateway().finish(),
+                Ok(_) => (Status::Accepted, id),
+                Err(_) => (
+                    Status::BadGateway,
+                    "Something went wrong whilst attempting to save the requested link."
+                        .to_string(),
+                ),
             }
         }
-        Err(_) => HttpResponse::BadRequest().finish(),
+        Err(_) => (
+            Status::BadRequest,
+            "The requested link is invalid.".to_string(),
+        ),
     }
 }
 
 #[get("/")]
-async fn get_repository() -> impl Responder {
-    HttpResponse::MovedPermanently()
-        .append_header((header::LOCATION, env!("CARGO_PKG_REPOSITORY")))
-        .finish()
+fn get_repository() -> Redirect {
+    Redirect::to(
+        Reference::parse(env!("CARGO_PKG_REPOSITORY"))
+            .expect("`Cargo.toml` should contain a valid `repository` key"),
+    )
 }
 
-#[get("/{id}")]
-async fn get_url(id: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
-    let url = state.persist.load::<String>(id.as_str());
+#[get("/<id>")]
+fn get_url<'a>(
+    id: LinkId<'a>,
+    state: &State<AppState>,
+) -> Result<Redirect, status::BadRequest<&'a str>> {
+    let url = state.persist.load::<String>(id.0);
 
     match url {
-        Ok(url) => HttpResponse::MovedPermanently()
-            .append_header((header::LOCATION, url))
-            .finish(),
-        Err(_) => HttpResponse::BadRequest().finish(),
+        Ok(url) => Ok(Redirect::to(
+            Reference::parse_owned(url).expect("`url` should be a valid URI"),
+        )),
+        Err(_) => Err(status::BadRequest(Some(
+            "No link was found with the requested ID.",
+        ))),
     }
 }
 
@@ -49,16 +67,25 @@ struct AppState {
     persist: PersistInstance,
 }
 
-#[shuttle_runtime::main]
-async fn actix_web(
-    #[shuttle_persist::Persist] persist: PersistInstance,
-) -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send + Clone + 'static> {
-    let config = move |cfg: &mut ServiceConfig| {
-        cfg.service(post_url)
-            .service(get_repository)
-            .service(get_url)
-            .app_data(web::Data::new(AppState { persist }));
-    };
+struct LinkId<'r>(&'r str);
 
-    Ok(config.into())
+impl<'r> FromParam<'r> for LinkId<'r> {
+    type Error = &'r str;
+
+    fn from_param(param: &'r str) -> Result<Self, Self::Error> {
+        if param.len() == 9 {
+            Ok(Self(param))
+        } else {
+            Err(param)
+        }
+    }
+}
+
+#[shuttle_runtime::main]
+async fn rocket(#[shuttle_persist::Persist] persist: PersistInstance) -> ShuttleRocket {
+    let rocket = rocket::build()
+        .mount("/", routes![post_url, get_repository, get_url])
+        .manage(AppState { persist });
+
+    Ok(rocket.into())
 }
