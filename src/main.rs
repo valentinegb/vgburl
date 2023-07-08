@@ -14,15 +14,13 @@ use rocket::{
 use shuttle_persist::PersistInstance;
 use shuttle_rocket::ShuttleRocket;
 
-#[post("/", data = "<req_body>")]
-fn post_url(req_body: String, state: &State<AppState>) -> (Status, String) {
-    let url = Absolute::parse_owned(req_body);
-
-    match url {
+#[post("/", data = "<url>")]
+fn post_url(url: String, persist: &State<PersistInstance>) -> (Status, String) {
+    match Absolute::parse_owned(url) {
         Ok(url) => {
             let id = nanoid!(9);
 
-            match state.persist.save::<String>(&id, url.to_string()) {
+            match persist.save::<String>(&id, url.to_string()) {
                 Ok(_) => (Status::Accepted, id),
                 Err(_) => (
                     Status::BadGateway,
@@ -49,11 +47,9 @@ fn get_repository() -> Redirect {
 #[get("/<id>")]
 fn get_url<'a>(
     id: LinkId<'a>,
-    state: &State<AppState>,
+    persist: &State<PersistInstance>,
 ) -> Result<Redirect, status::BadRequest<&'a str>> {
-    let url = state.persist.load::<String>(id.0);
-
-    match url {
+    match persist.load::<String>(id.0) {
         Ok(url) => Ok(Redirect::to(
             Reference::parse_owned(url).expect("`url` should be a valid URI"),
         )),
@@ -61,10 +57,6 @@ fn get_url<'a>(
             "No link was found with the requested ID.",
         ))),
     }
-}
-
-struct AppState {
-    persist: PersistInstance,
 }
 
 struct LinkId<'r>(&'r str);
@@ -85,7 +77,7 @@ impl<'r> FromParam<'r> for LinkId<'r> {
 async fn rocket(#[shuttle_persist::Persist] persist: PersistInstance) -> ShuttleRocket {
     let rocket = rocket::build()
         .mount("/", routes![post_url, get_repository, get_url])
-        .manage(AppState { persist });
+        .manage(persist);
 
     Ok(rocket.into())
 }

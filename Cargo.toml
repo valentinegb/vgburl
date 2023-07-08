@@ -1,6 +1,6 @@
 [package]
 name = "vgburl"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Valentine Briese <valentinegb@icloud.com>"]
 edition = "2021"
 description = "A simple personal URL shortener backend."
